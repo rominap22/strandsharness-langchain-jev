@@ -52,8 +52,15 @@ python demo.py            # interactive REPL
 ```
 
 **Modes** (`DEMO_MODE` in `.env`):
-- `offline` (default) — `FakeJev` + `FakeReasoner`; deterministic, no network.
-- `live` — real Jev (`TYPESAFE_API_KEY`) + LangChain/Bedrock (AWS creds).
+- `offline` (default) — `FakeJev` + `FakeReasoner`; deterministic, no network, no keys.
+- `adapter` — real typed decisions via TypeSafe's open-source System One adapter, driven over
+  Bedrock's native Converse API, plus real Bedrock reasoning. No TypeSafe key. Use when
+  TypeSafe signups are paused. Needs a Bedrock bearer token (`AWS_BEARER_TOKEN_BEDROCK`) and
+  an inference-profile model ID (e.g. `us.anthropic.claude-...`).
+- `live` — real Jev (`TYPESAFE_API_KEY`) + LangChain/Bedrock reasoning (AWS creds).
+
+The startup banner prints the active `router=` and `reasoner=` classes so you always know
+which mode you're really in (`Fake*` = stubbed).
 
 ## Sample input / output
 
@@ -93,10 +100,46 @@ one). Offline mode uses keyword matching (`FakeJev`) and a single canned reasoni
 (`FakeReasoner`) — natural-language nuance requires `DEMO_MODE=live`. Typed output is not a
 correctness guarantee; keep authorization, thresholds, and side effects in code.
 
+## Architecture decisions
+
+**1. Three intelligences, not one.** Code controls deterministic rules, Jev makes bounded
+typed decisions (route / guardrail / confirm), LangChain reasons only for open-ended work,
+and Strands orchestrates. The right kind of intelligence for each step, instead of routing
+every turn through one large LLM.
+
+**2. Jev decides, the LLM reasons.** Routing, injection-guarding, and confirmation are
+bounded judgments with a known answer space, so they use Jev's typed `Choice`/`Noul`
+primitives (fast, cheap, confidence-scored). Only genuinely open-ended requests reach the
+LLM — keeping cost and latency down and decisions inspectable.
+
+**3. Confirmations resolved in code, then Jev — never the LLM.** After a medium-confidence
+clarify, a `yes`/`no` reply is first matched against a fast-path word list (free), then, for
+natural language, sent to a Jev `Noul` ("does this confirm?"). The LLM is never asked to
+interpret "yeah, go ahead." The original question is stored with the pending capability and
+replayed on confirmation, so the answer addresses the real request, not the word "yes".
+
+**4. Three run modes so the demo never hinges on one dependency being up.** `offline` uses
+stubs with the *same interfaces* as the real components (booth-safe, zero deps). `adapter`
+runs real typed decisions through TypeSafe's open-source System One adapter when hosted-Jev
+signups are paused. `live` uses the real hosted Jev model.
+
+**5. Decisions and reasoning both run on Bedrock's native Converse API (`langchain-aws`).**
+The System One adapter ships only `openai`/`anthropic`/`gemini` providers, not Bedrock. An
+early attempt bridged through Bedrock's *OpenAI-compatible* endpoint (`/openai/v1`), but that
+surface only exposes a subset of models and returns "model doesn't support this API" for the
+rest. Since the reasoning side already reached Bedrock reliably via the native Converse API,
+the decision side was pointed at the *same* path through a small custom adapter provider
+(`_BedrockSystemOneProvider`). One proven transport for both; the OpenAI-compat failures are
+gone. Newer Claude models require an **inference-profile** model ID (the `us.` prefix), not
+the bare on-demand ID.
+
+**6. Capabilities are self-describing.** Tool descriptions in `harness/capabilities.py` *are*
+Jev's decision space. Adding a capability auto-joins routing with no router rewrite.
+
 ## Sources
 
-- Strands Agents — model-driven agent SDK: https://strandsagents.com
+- Strands Agents — model-driven agent SDK: [strandsagents.com](https://strandsagents.com)
 - Jev (TypeSafe System One model) — `Choice`/`Score`/`Noul`, probabilities + confidence,
-  `POST /v1/systemone`: https://docs.typesafe.ai
+  `POST /v1/systemone`: [docs.typesafe.ai](https://docs.typesafe.ai)
 - Jev + LLMs: fast typed decisions plus generated language:
-  https://builder.aws.com/content/3JgdW6BWEBxbMRp6LoJ6mjMoT64/jev-and-llms-fast-typed-decisions-plus-generated-language
+  [builder.aws.com article](https://builder.aws.com/content/3JgdW6BWEBxbMRp6LoJ6mjMoT64/jev-and-llms-fast-typed-decisions-plus-generated-language)
