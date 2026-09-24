@@ -1,0 +1,15 @@
+# OFFLINE mode needs NOTHING here -- it runs on the Python standard library alone.
+# Install the lines below only for adapter or live mode.
+
+# dotenv is optional (auto-loads .env if present)
+python-dotenv>=1.0.0
+
+# --- adapter + live modes: LangChain reasoning on Bedrock ---
+langchain-core>=0.3.0
+langchain-aws>=0.2.0
+
+# --- adapter mode: typed decisions via Bedrock's OpenAI-compatible endpoint ---
+system-one-adapter[openai]>=0.1.0
+
+# --- live mode only: the real Jev model ---
+typesafe-sdk>=0.7.0
