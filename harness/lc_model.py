@@ -52,13 +52,22 @@ class FakeReasoner:
 
 def make_reasoner():
     """
-    Factory keyed on DEMO_MODE:
+    Factory keyed on DEMO_MODE, with an independent override:
       offline (default)  -> FakeReasoner      (canned, no network)
       adapter | live     -> LangChainReasoner  (real answers via Bedrock)
     Both real modes reason on Bedrock; they differ only in the decision layer
     (adapter = System One adapter on Bedrock, live = real Jev).
+
+    BEDROCK_REASONER=1 (or "true") forces LangChainReasoner regardless of
+    DEMO_MODE. This lets the *routing* decision stay on a stub router (no
+    TypeSafe/Jev package or key needed -- e.g. DEMO_MODE=offline's FakeJev,
+    or DECIDER_MODE=offline's FakeDeciderRouter) while the llm_reasoning
+    capability still calls real Bedrock via AWS_BEARER_TOKEN_BEDROCK (or
+    standard AWS credentials). Nothing about the existing DEMO_MODE values'
+    behavior changes unless this new, separate env var is explicitly set.
     """
     mode = os.getenv("DEMO_MODE", "offline").lower()
-    if mode in ("live", "adapter"):
+    force_bedrock = os.getenv("BEDROCK_REASONER", "").lower() in ("1", "true", "yes")
+    if force_bedrock or mode in ("live", "adapter"):
         return LangChainReasoner()
     return FakeReasoner()

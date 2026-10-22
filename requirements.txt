@@ -13,3 +13,10 @@ system-one-adapter[openai]>=0.1.0
 
 # --- live mode only: the real Jev model ---
 typesafe-sdk>=0.7.0
+
+# --- live mode only: the real strands-decider-2b model (harness_decider/) ---
+strands-decider>=0.1.0
+
+# --- test suite (harness_decider/ unit, structural, snapshot, property tests) ---
+pytest>=8.0.0
+hypothesis>=6.100.0
